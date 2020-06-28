@@ -3,6 +3,7 @@ import numpy as np
 import argparse
 import cv2
 import imutils
+from imutils import perspective
 from transform import four_point_transform
 import os
 
@@ -41,30 +42,37 @@ class Scan:
         # largest ones, and initialize the screen contour
         cnts = cv2.findContours(edged.copy(), cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         cnts = imutils.grab_contours(cnts)
-        cnts = sorted(cnts, key = cv2.contourArea, reverse = True)[:5]
+        image = imutils.resize(image, height = 500)
+        orig = imutils.resize(orig, height=500)
+        # cnts = sorted(cnts, key = cv2.contourArea, reverse = True)
         # loop over the contours
-        screenCnt = None
+        rect = None
+        maxArea = -1
         for c in cnts:
-            # approximate the contour
-            peri = cv2.arcLength(c, True)
-            approx = cv2.approxPolyDP(c, 0.02 * peri, True)
-            # if our approximated contour has four points, then we
-            # can assume that we have found our screen
-            if len(approx) == 4:
-                screenCnt = approx
-                break
+            box = cv2.minAreaRect(c)
+            box = cv2.boxPoints(box)
+            box = np.array(box, dtype="int")
+            box = perspective.order_points(box)
+            topLeft, topRight, bottomRight, bottomLeft = box
+            h, w = topRight[0] - topLeft[0], bottomLeft[1] - topLeft[1]
+            if h * w > maxArea:
+                maxArea = h * w
+                rect = box
+        
+        cv2.drawContours(image, [rect.astype("int")], -1, (0, 255, 0), 2)
+        cv2.imshow("Outline", image)
+        cv2.waitKey(0)
+
         # show the contour (outline) of the piece of paper
         print("STEP 2: Find contours of paper")
-        if screenCnt is not None:
-            cv2.drawContours(image, [screenCnt], -1, (0, 255, 0), 2)
         cv2.imshow("Outline", image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
     
         # apply the four point transform to obtain a top-down
         # view of the original image
-        if screenCnt is not None:
-            warped = four_point_transform(orig, screenCnt.reshape(4, 2) * self.ratio)
+        if len(cnts) > 0:
+            warped = four_point_transform(orig, rect)
             # convert the warped image to grayscale, then threshold it
             # to give it that 'black and white' paper effect
             warped = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
