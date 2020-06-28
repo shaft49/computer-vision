@@ -24,10 +24,9 @@ def order_points(pts):
     # return the ordered coordinates
     return rect
 
-def four_point_transform(image, pts):
+def four_point_transform(image, rect):
     # obtain a consistent order of the points and unpack them
     # individually
-    rect = order_points(pts)
     (tl, tr, br, bl) = rect
 
     # compute the width of the new image, which will be the
